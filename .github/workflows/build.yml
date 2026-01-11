@@ -1,0 +1,91 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: vitasdk/vitasdk:latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y pngquant
+
+      - name: Optimize PNG assets
+        run: |
+          pngquant --force --ext .png 256 sce_sys/icon0.png || true
+          pngquant --force --ext .png 256 sce_sys/livearea/contents/bg.png || true
+          pngquant --force --ext .png 256 sce_sys/livearea/contents/startup.png || true
+
+      - name: Build VPK
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+          make
+
+      - name: Upload VPK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vita_screen_test
+          path: build/vita_screen_test.vpk
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download VPK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vita_screen_test
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Vita Screen Test ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## Vita Screen Test ${{ steps.get_version.outputs.VERSION }}
+            
+            ### Installation
+            1. Download `vita_screen_test.vpk` below
+            2. Transfer to your PS Vita
+            3. Install using VitaShell
+            4. Launch from home screen
+            
+            ### Features
+            - 19 test patterns for OLED burn-in detection
+            - Double-buffered rendering (no screen tearing)
+            - Animated patterns with adjustable speed
+            
+            ### Controls
+            - **X/O**: Next pattern
+            - **□/△**: Previous pattern  
+            - **L/R**: Adjust speed
+            - **SELECT**: Toggle info
+            - **START**: Exit
+          files: vita_screen_test.vpk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
