@@ -20,8 +20,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt-get update
-          apt-get install -y pngquant
+          apk update
+          apk add --no-cache pngquant
 
       - name: Optimize PNG assets
         run: |
